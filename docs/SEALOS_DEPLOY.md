@@ -8,13 +8,13 @@ This guide deploys Ocean Backend to Sealos with a container image and a Sealos P
 - Container port: `3000`
 - Health check: `/health`
 - Database: Sealos PostgreSQL
-- Runtime command for the first single-instance release:
+- Default runtime command:
 
 ```bash
-npm run prisma:deploy && npm run start:prod
+npm run start:sealos
 ```
 
-`prisma migrate deploy` is idempotent and safe to run when the app starts as long as the app is running as one instance. If you later scale to multiple replicas, run migrations as a separate one-off task before redeploying all replicas.
+`start:sealos` runs `prisma migrate deploy` and then starts the API. It is idempotent and safe while the app is running as one instance. If you later scale to multiple replicas, run migrations as a separate one-off task before redeploying all replicas.
 
 ## 1. Choose A Sealos Region
 
@@ -80,17 +80,10 @@ Use these values:
 - Public access: enabled
 - Health check path: `/health`
 
-Startup command:
+Leave the startup command empty so Sealos uses the image default command:
 
 ```bash
-npm run prisma:deploy && npm run start:prod
-```
-
-If the UI has separate command and args fields, use:
-
-```text
-Command: sh
-Args: -c "npm run prisma:deploy && npm run start:prod"
+npm run start:sealos
 ```
 
 ## 5. Add Environment Variables
@@ -159,7 +152,7 @@ For normal updates:
 
 1. Merge code to `main`.
 2. Wait for GitHub Actions to publish a new image.
-3. Redeploy the Sealos app with `ghcr.io/<OWNER>/<REPO>:latest`.
+3. Redeploy the Sealos app with `ghcr.io/<OWNER>/<REPO>:latest` or the new immutable commit tag.
 4. Verify `/health` and `/docs`.
 
 For rollback, use a previous immutable SHA tag:

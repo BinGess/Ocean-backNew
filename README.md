@@ -37,8 +37,10 @@ Prepared deployment files:
 The Sealos app should expose port `3000`, use `/health` as the health check path, and start with:
 
 ```bash
-npm run prisma:deploy && npm run start:prod
+npm run start:sealos
 ```
+
+In Sealos, leave the startup command empty so the image default command runs this script.
 
 ## Render Deployment
 
