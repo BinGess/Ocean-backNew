@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum RecordType {
+  quick_note
+  journal
+  weekly
+}
+
+enum ProcessingMode {
+  only_record
+  with_mood
+  with_nvc
+}
+
+enum PeriodType {
+  weekly
+  monthly
+}
+
+enum SyncEntityType {
+  profile
+  record
+  daily_summary
+  daily_mood
+  insight_report
+  weekly_insight
+}
+
+model User {
+  id           String           @id @default(uuid())
+  email        String           @unique
+  passwordHash String
+  status       UserStatus       @default(active)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  profile      UserProfile?
+  sessions     RefreshSession[]
+  records      Record[]
+  dailySummaries DailySummary[]
+  dailyMoods   DailyMood[]
+  insightReports InsightReport[]
+  weeklyInsights WeeklyInsight[]
+  syncChanges  SyncChange[]
+}
+
+model RefreshSession {
+  id           String   @id @default(uuid())
+  userId       String
+  tokenHash    String
+  deviceId     String?
+  deviceName   String?
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  avatar          String?
+  nickname        String?
+  signature       String?
+  clientUpdatedAt DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Record {
+  id                  String          @id @default(uuid())
+  userId              String
+  clientRecordId      String
+  type                RecordType
+  transcription       String
+  createdAtClient     DateTime
+  clientUpdatedAt     DateTime
+  audioUrl            String?
+  duration            Float?
+  processingMode      ProcessingMode?
+  moods               Json?
+  needs               Json?
+  nvc                 Json?
+  title               String?
+  summary             String?
+  date                String?
+  referencedFragments Json?
+  weekRange           String?
+  referencedRecords   Json?
+  patternFeedback     String?
+  deletedAt           DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientRecordId])
+  @@index([userId, clientUpdatedAt])
+}
+
+model DailySummary {
+  id              String   @id @default(uuid())
+  userId          String
+  dateKey         String
+  moodWord        String
+  oneSentence     String
+  score           Int
+  recordCount     Int
+  generatedAt     DateTime
+  userOverridden  Boolean  @default(false)
+  clientUpdatedAt DateTime @default(now())
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dateKey])
+}
+
+model DailyMood {
+  id              String   @id @default(uuid())
+  userId          String
+  dateKey         String
+  imagePath       String
+  clientUpdatedAt DateTime @default(now())
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dateKey])
+}
+
+model InsightReport {
+  id              String     @id @default(uuid())
+  userId          String
+  periodType      PeriodType
+  periodKey       String
+  weekRange       String?
+  report          Json
+  cachedAt        DateTime
+  recordCount     Int?
+  clientUpdatedAt DateTime   @default(now())
+  deletedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodType, periodKey])
+}
+
+model WeeklyInsight {
+  id              String   @id @default(uuid())
+  userId          String
+  clientInsightId String
+  weekRange       String
+  startDate       DateTime
+  endDate         DateTime
+  payload         Json
+  clientUpdatedAt DateTime @default(now())
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientInsightId])
+}
+
+model SyncChange {
+  id         String         @id @default(uuid())
+  userId     String
+  revision   BigInt
+  entityType SyncEntityType
+  entityId   String
+  payload    Json
+  createdAt  DateTime       @default(now())
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, revision])
+  @@index([userId, revision])
+}
