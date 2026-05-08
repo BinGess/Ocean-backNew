@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { SyncRevisionService } from '../common/services/sync-revision.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/profile.dto';
 
 @Injectable()
 export class MeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revisions: SyncRevisionService,
+  ) {}
 
   async getProfile(userId: string) {
     const profile = await this.prisma.userProfile.findUnique({ where: { userId } });
@@ -34,11 +38,13 @@ export class MeService {
         clientUpdatedAt,
       },
     });
-    return {
+    const payload = {
       avatar: profile.avatar ?? null,
       nickname: profile.nickname ?? null,
       signature: profile.signature ?? null,
       clientUpdatedAt: profile.clientUpdatedAt.toISOString(),
     };
+    const revision = await this.revisions.recordChange(userId, 'profile', userId, payload);
+    return { revision, data: payload };
   }
 }
