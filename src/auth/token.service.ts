@@ -36,17 +36,25 @@ export class TokenService {
   }
 
   verifyAccess(token: string): TokenPayload {
-    const payload = this.accessJwt.verify<TokenPayload>(token);
+    const payload = this.verifyJwt(this.accessJwt, token, 'Invalid access token');
     if (payload.type !== 'access') throw new UnauthorizedException('Invalid access token');
     return payload;
   }
 
   verifyRefresh(token: string): TokenPayload {
-    const payload = this.refreshJwt.verify<TokenPayload>(token);
+    const payload = this.verifyJwt(this.refreshJwt, token, 'Invalid refresh token');
     if (payload.type !== 'refresh' || !payload.sessionId) {
       throw new UnauthorizedException('Invalid refresh token');
     }
     return payload;
+  }
+
+  private verifyJwt(jwt: JwtService, token: string, message: string): TokenPayload {
+    try {
+      return jwt.verify<TokenPayload>(token);
+    } catch {
+      throw new UnauthorizedException(message);
+    }
   }
 
   randomTokenId(): string {
