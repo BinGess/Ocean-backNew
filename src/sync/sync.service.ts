@@ -318,15 +318,18 @@ export class SyncService {
   }
 
   private recordPayload(record: any) {
+    const createdAt = this.iso(record.createdAtClient ?? record.createdAt) ?? new Date(0).toISOString();
+    const updatedAt =
+      this.iso(record.clientUpdatedAt ?? record.updatedAt ?? record.createdAtClient ?? record.createdAt) ?? createdAt;
     return {
-      id: record.clientRecordId,
-      type: record.type,
-      transcription: record.transcription,
-      createdAt: this.iso(record.createdAtClient),
-      updatedAt: this.iso(record.clientUpdatedAt),
+      id: record.clientRecordId ?? record.id,
+      type: this.recordType(record.type),
+      transcription: record.transcription ?? '',
+      createdAt,
+      updatedAt,
       audioUrl: null,
       duration: record.duration ?? null,
-      processingMode: record.processingMode ?? null,
+      processingMode: this.processingMode(record.processingMode),
       moods: record.moods ?? null,
       needs: record.needs ?? null,
       nvc: record.nvc ?? null,
@@ -339,6 +342,14 @@ export class SyncService {
       patternFeedback: record.patternFeedback ?? null,
       deletedAt: this.iso(record.deletedAt),
     };
+  }
+
+  private recordType(value?: string | null): string {
+    return value === 'journal' || value === 'weekly' || value === 'quick_note' ? value : 'quick_note';
+  }
+
+  private processingMode(value?: string | null): string | null {
+    return value === 'only_record' || value === 'with_mood' || value === 'with_nvc' ? value : null;
   }
 
   private dailySummaryPayload(item: any) {
@@ -394,7 +405,9 @@ export class SyncService {
     return new Date(value);
   }
 
-  private iso(value?: Date | null): string | null {
-    return value ? value.toISOString() : null;
+  private iso(value?: Date | string | null): string | null {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
   }
 }
