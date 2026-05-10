@@ -1,7 +1,10 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { LoginDto, RefreshDto, RegisterDto } from './dto/auth.dto';
+import { LoginDto, RefreshDto, RegisterDto, SmsLoginDto, SmsSendCodeDto } from './dto/auth.dto';
 import { PasswordService } from './password.service';
+import { PhoneNumberService } from './phone-number.service';
+import { SmsRateLimitService } from './sms-rate-limit.service';
+import { SMS_PROVIDER, SmsProvider } from './sms.provider';
 import { TokenService } from './token.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -18,6 +21,10 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
+    @Inject(SMS_PROVIDER)
+    private readonly smsProvider: SmsProvider,
+    private readonly phoneNumberService: PhoneNumberService,
+    private readonly smsRateLimitService: SmsRateLimitService,
   ) {}
 
   async register(dto: RegisterDto, context: AuthContext = {}) {
@@ -48,13 +55,76 @@ export class AuthService {
   async login(dto: LoginDto, context: AuthContext = {}) {
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user || user.status === 'disabled') {
+    if (!user || user.status === 'disabled' || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const passwordOk = await this.passwordService.verify(user.passwordHash, dto.password);
     if (!passwordOk) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return this.issueTokens(user.id, context);
+  }
+
+  async sendSmsCode(dto: SmsSendCodeDto, context: AuthContext = {}) {
+    const phone = this.phoneNumberService.normalize(dto.phone);
+    await this.smsRateLimitService.assertCanSend(phone.hash, context.ipAddress);
+    const outId = this.tokenService.randomTokenId();
+    const sent = await this.smsProvider.sendCode(phone.nationalNumber, outId);
+    await this.prisma.smsLoginAttempt.create({
+      data: {
+        phoneHash: phone.hash,
+        scene: 'login',
+        ipAddress: context.ipAddress,
+        deviceId: context.deviceId,
+        aliRequestId: sent.requestId,
+        aliBizId: sent.bizId,
+      },
+    });
+    return {
+      success: true,
+      cooldownSeconds: Number(process.env.ALIYUN_SMS_INTERVAL_SECONDS ?? '60'),
+    };
+  }
+
+  async loginWithSms(dto: SmsLoginDto, context: AuthContext = {}) {
+    const phone = this.phoneNumberService.normalize(dto.phone);
+    const verified = await this.smsProvider.checkCode(phone.nationalNumber, dto.code);
+    if (!verified) {
+      throw new UnauthorizedException('Invalid SMS verification code');
+    }
+
+    let user = await this.prisma.user.findUnique({ where: { phoneNumberHash: phone.hash } });
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: null,
+          passwordHash: null,
+          phoneCountryCode: phone.countryCode,
+          phoneNumberHash: phone.hash,
+          phoneNumberEnc: phone.encrypted,
+          phoneVerifiedAt: new Date(),
+          profile: {
+            create: {
+              nickname: null,
+              avatar: null,
+              signature: null,
+            },
+          },
+        } as any,
+      });
+    } else if (user.status === 'disabled') {
+      throw new UnauthorizedException('Invalid credentials');
+    } else {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          phoneCountryCode: phone.countryCode,
+          phoneNumberEnc: phone.encrypted,
+          phoneVerifiedAt: new Date(),
+        } as any,
+      });
     }
 
     return this.issueTokens(user.id, context);
@@ -124,7 +194,8 @@ export class AuthService {
       refreshToken,
       user: {
         id: userId,
-        email: user?.email,
+        email: user?.email ?? null,
+        phone: this.phoneNumberService.maskStored(user?.phoneNumberEnc),
         nickname: profile?.nickname ?? null,
       },
     };

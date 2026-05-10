@@ -40,8 +40,12 @@ enum SyncEntityType {
 
 model User {
   id           String           @id @default(uuid())
-  email        String           @unique
-  passwordHash String
+  email        String?          @unique
+  passwordHash String?
+  phoneCountryCode String?
+  phoneNumberHash  String?     @unique
+  phoneNumberEnc   String?
+  phoneVerifiedAt  DateTime?
   status       UserStatus       @default(active)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -53,6 +57,24 @@ model User {
   insightReports InsightReport[]
   weeklyInsights WeeklyInsight[]
   syncChanges  SyncChange[]
+  smsLoginAttempts SmsLoginAttempt[]
+}
+
+model SmsLoginAttempt {
+  id           String   @id @default(uuid())
+  userId       String?
+  phoneHash    String
+  scene        String
+  ipAddress    String?
+  deviceId     String?
+  aliRequestId String?
+  aliBizId     String?
+  sentAt       DateTime @default(now())
+  createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([phoneHash, sentAt])
+  @@index([ipAddress, sentAt])
 }
 
 model RefreshSession {

@@ -8,7 +8,12 @@ function now(): Date {
 
 function matches<T extends Record<string, unknown>>(item: T, where?: WhereUnique<T>): boolean {
   if (!where) return true;
-  return Object.entries(where).every(([key, value]) => item[key] === value);
+  return Object.entries(where).every(([key, value]) => {
+    if (value && typeof value === 'object' && 'gt' in value) {
+      return (item[key] as any) > (value as { gt: any }).gt;
+    }
+    return item[key] === value;
+  });
 }
 
 function normalizeCreateData<T extends Record<string, unknown>>(data: T): T {
@@ -95,6 +100,7 @@ export class InMemoryPrismaService {
   readonly insightReports: any[] = [];
   readonly weeklyInsights: any[] = [];
   readonly syncChanges: any[] = [];
+  readonly smsLoginAttempts: any[] = [];
 
   user = new InMemoryDelegate(this.users, async (user, data) => {
     const profile = data.profile as { create?: Record<string, unknown> } | undefined;
@@ -116,6 +122,7 @@ export class InMemoryPrismaService {
   insightReport = new InMemoryDelegate(this.insightReports);
   weeklyInsight = new InMemoryDelegate(this.weeklyInsights);
   syncChange = new InMemoryDelegate(this.syncChanges);
+  smsLoginAttempt = new InMemoryDelegate(this.smsLoginAttempts);
 
   async $transaction<T>(fn: (client: this) => Promise<T>): Promise<T> {
     return fn(this);

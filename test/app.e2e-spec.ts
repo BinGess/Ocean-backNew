@@ -165,6 +165,31 @@ describe('Ocean API (e2e)', () => {
     expect(pulled.body.changes[0].payload.deletedAt).toEqual(expect.any(String));
   });
 
+  it('logs in with SMS verification and restores an Ocean session', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/sms/send-code')
+      .send({ phone: '13800138000' })
+      .expect(201)
+      .expect((res) => {
+        expect(res.body.success).toBe(true);
+        expect(res.body.cooldownSeconds).toEqual(expect.any(Number));
+      });
+
+    const auth = await request(app.getHttpServer())
+      .post('/auth/sms/login')
+      .send({ phone: '+8613800138000', code: '123456' })
+      .expect(201);
+
+    expect(auth.body.accessToken).toEqual(expect.any(String));
+    expect(auth.body.refreshToken).toEqual(expect.any(String));
+    expect(auth.body.user.phone).toBe('138****8000');
+
+    await request(app.getHttpServer())
+      .get('/sync/snapshot')
+      .set('Authorization', `Bearer ${auth.body.accessToken}`)
+      .expect(200);
+  });
+
   it('updates profile, daily data, and reports through server-first APIs', async () => {
     const auth = await request(app.getHttpServer())
       .post('/auth/register')

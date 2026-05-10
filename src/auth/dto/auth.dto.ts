@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -31,4 +31,18 @@ export class RefreshDto {
   @ApiProperty()
   @IsString()
   refreshToken!: string;
+}
+
+export class SmsSendCodeDto {
+  @ApiProperty({ example: '13800138000' })
+  @IsString()
+  @Matches(/^(\+?86)?1[3-9]\d{9}$/)
+  phone!: string;
+}
+
+export class SmsLoginDto extends SmsSendCodeDto {
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @Matches(/^\d{4,8}$/)
+  code!: string;
 }

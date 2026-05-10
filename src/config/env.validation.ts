@@ -27,6 +27,11 @@ export function validateEnv(config: Record<string, unknown>) {
     if (refreshSecret.length < 32) {
       throw new Error('JWT_REFRESH_SECRET must be at least 32 characters in production');
     }
+    if (String(env.SMS_PROVIDER ?? 'aliyun') !== 'console') {
+      for (const key of ['ALIYUN_ACCESS_KEY_ID', 'ALIYUN_ACCESS_KEY_SECRET', 'ALIYUN_SMS_SIGN_NAME', 'ALIYUN_SMS_TEMPLATE_CODE']) {
+        if (!env[key]) throw new Error(`${key} is required in production`);
+      }
+    }
   }
 
   const refreshDays = Number(env.JWT_REFRESH_EXPIRES_IN_DAYS);
