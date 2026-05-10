@@ -19,22 +19,12 @@ export interface SmsProvider {
 
 @Injectable()
 export class AliyunSmsProvider implements SmsProvider {
-  private readonly client: DypnsapiClient;
-
-  constructor() {
-    this.client = new DypnsapiClient(
-      new OpenApiConfig({
-        accessKeyId: this.requiredEnv('ALIYUN_ACCESS_KEY_ID'),
-        accessKeySecret: this.requiredEnv('ALIYUN_ACCESS_KEY_SECRET'),
-        endpoint: process.env.ALIYUN_DYPN_ENDPOINT ?? 'dypnsapi.aliyuncs.com',
-      }) as any,
-    );
-  }
+  private client?: DypnsapiClient;
 
   async sendCode(phoneNumber: string, outId: string): Promise<SmsSendResult> {
     const validSeconds = Number(process.env.ALIYUN_SMS_VALID_SECONDS ?? '300');
     const min = Math.max(1, Math.ceil(validSeconds / 60)).toString();
-    const response = await this.client.sendSmsVerifyCode(
+    const response = await this.getClient().sendSmsVerifyCode(
       new SendSmsVerifyCodeRequest({
         schemeName: process.env.ALIYUN_SMS_SCHEME_NAME || undefined,
         countryCode: '86',
@@ -63,7 +53,7 @@ export class AliyunSmsProvider implements SmsProvider {
   }
 
   async checkCode(phoneNumber: string, code: string): Promise<boolean> {
-    const response = await this.client.checkSmsVerifyCode(
+    const response = await this.getClient().checkSmsVerifyCode(
       new CheckSmsVerifyCodeRequest({
         schemeName: process.env.ALIYUN_SMS_SCHEME_NAME || undefined,
         countryCode: '86',
@@ -78,8 +68,23 @@ export class AliyunSmsProvider implements SmsProvider {
 
   private requiredEnv(name: string): string {
     const value = process.env[name];
-    if (!value) throw new Error(`${name} is required`);
+    if (!value) {
+      throw new InternalServerErrorException(`${name} is required for SMS verification`);
+    }
     return value;
+  }
+
+  private getClient(): DypnsapiClient {
+    if (!this.client) {
+      this.client = new DypnsapiClient(
+        new OpenApiConfig({
+          accessKeyId: this.requiredEnv('ALIYUN_ACCESS_KEY_ID'),
+          accessKeySecret: this.requiredEnv('ALIYUN_ACCESS_KEY_SECRET'),
+          endpoint: process.env.ALIYUN_DYPN_ENDPOINT ?? 'dypnsapi.aliyuncs.com',
+        }) as any,
+      );
+    }
+    return this.client;
   }
 }
 
