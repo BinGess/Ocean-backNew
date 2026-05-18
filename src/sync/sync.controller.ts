@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard, JwtUser } from '../common/guards/jwt-auth.guard';
+import { sarahDebugLog } from '../common/utils/sarah-debug-log';
 import { SyncPushDto } from './dto/sync.dto';
 import { SyncService } from './sync.service';
 
@@ -15,7 +16,7 @@ export class SyncController {
   @Get('snapshot')
   async snapshot(@CurrentUser() user: JwtUser) {
     const result = await this.syncService.snapshot(user.id);
-    console.log('[SarahDebug] GET /sync/snapshot', {
+    sarahDebugLog('GET /sync/snapshot result', {
       userId: user.id,
       records: result.records?.length ?? 0,
       insightReports: result.insightReports?.length ?? 0,
