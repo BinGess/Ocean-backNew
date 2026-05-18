@@ -17,8 +17,14 @@ export class SarahController {
   constructor(private readonly sarahService: SarahService) {}
 
   @Get()
-  list(@CurrentUser() user: JwtUser) {
-    return this.sarahService.list(user.id);
+  async list(@CurrentUser() user: JwtUser) {
+    const result = await this.sarahService.list(user.id);
+    console.log('[SarahDebug] GET /sarah/letters', {
+      userId: user.id,
+      letters: result.letters?.length ?? 0,
+      types: result.letters?.map((letter) => letter.type) ?? [],
+    });
+    return result;
   }
 
   @Post('welcome')
@@ -29,8 +35,21 @@ export class SarahController {
 
   @Post('migrate-legacy')
   @HttpCode(200)
-  migrateLegacy(@CurrentUser() user: JwtUser, @Body() dto: MigrateLegacyLettersDto) {
-    return this.sarahService.migrateLegacy(user.id, dto.letters);
+  async migrateLegacy(@CurrentUser() user: JwtUser, @Body() dto: MigrateLegacyLettersDto) {
+    console.log('[SarahDebug] POST /sarah/letters/migrate-legacy request', {
+      userId: user.id,
+      letters: dto.letters?.length ?? 0,
+      types: dto.letters?.map((letter) => letter.type) ?? [],
+      sourceLegacyReportIds: dto.letters?.map((letter) => letter.sourceLegacyReportId ?? null) ?? [],
+    });
+
+    const result = await this.sarahService.migrateLegacy(user.id, dto.letters);
+    console.log('[SarahDebug] POST /sarah/letters/migrate-legacy response', {
+      userId: user.id,
+      letters: result.letters?.length ?? 0,
+      types: result.letters?.map((letter) => letter.type) ?? [],
+    });
+    return result;
   }
 
   @Post('generate-weekly')

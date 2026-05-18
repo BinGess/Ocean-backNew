@@ -13,8 +13,15 @@ export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 
   @Get('snapshot')
-  snapshot(@CurrentUser() user: JwtUser) {
-    return this.syncService.snapshot(user.id);
+  async snapshot(@CurrentUser() user: JwtUser) {
+    const result = await this.syncService.snapshot(user.id);
+    console.log('[SarahDebug] GET /sync/snapshot', {
+      userId: user.id,
+      records: result.records?.length ?? 0,
+      insightReports: result.insightReports?.length ?? 0,
+      weeklyInsights: result.weeklyInsights?.length ?? 0,
+    });
+    return result;
   }
 
   @Post('push')
