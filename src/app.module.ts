@@ -8,6 +8,7 @@ import { MeModule } from './me/me.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RecordsModule } from './records/records.module';
 import { ReportsModule } from './reports/reports.module';
+import { SarahModule } from './sarah/sarah.module';
 import { SyncModule } from './sync/sync.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { SyncModule } from './sync/sync.module';
     RecordsModule,
     DailyModule,
     ReportsModule,
+    SarahModule,
     SyncModule,
   ],
   controllers: [HealthController],

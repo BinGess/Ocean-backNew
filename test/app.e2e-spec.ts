@@ -165,6 +165,127 @@ describe('Ocean API (e2e)', () => {
     expect(pulled.body.changes[0].payload.deletedAt).toEqual(expect.any(String));
   });
 
+  it('serves Sarah letters with welcome idempotency, legacy migration, and read updates', async () => {
+    const auth = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        email: 'sarah@example.com',
+        password: 'StrongerPass123',
+        nickname: 'Ocean',
+      })
+      .expect(201);
+
+    const accessToken = auth.body.accessToken as string;
+
+    const welcome = await request(app.getHttpServer())
+      .post('/sarah/letters/welcome')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(welcome.body.letter.type).toBe('welcome');
+    expect(welcome.body.letter.userId).toBe(auth.body.user.id);
+    expect(welcome.body.letter.accountId).toBe(auth.body.user.id);
+
+    const welcomeAgain = await request(app.getHttpServer())
+      .post('/sarah/letters/welcome')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(welcomeAgain.body.letter.id).toBe(welcome.body.letter.id);
+
+    const migrated = await request(app.getHttpServer())
+      .post('/sarah/letters/migrate-legacy')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        letters: [
+          {
+            id: 'local-legacy-1',
+            accountId: 'client-user-that-must-not-win',
+            type: 'legacy',
+            createdAt: '2026-05-01T08:00:00.000Z',
+            weekStart: '2026-04-27T00:00:00.000Z',
+            weekEnd: '2026-05-03T00:00:00.000Z',
+            content: '旧周报信件内容。',
+            previewText: '旧周报信件内容。',
+            illustrationIndex: 7,
+            isRead: false,
+            updatedAt: '2026-05-01T08:00:00.000Z',
+            sourceLegacyReportId: 'legacy-report-1',
+          },
+          {
+            id: 'local-legacy-1-duplicate',
+            type: 'legacy',
+            createdAt: '2026-05-02T08:00:00.000Z',
+            weekStart: '2026-04-27T00:00:00.000Z',
+            weekEnd: '2026-05-03T00:00:00.000Z',
+            content: '重复旧周报信件内容。',
+            previewText: '重复旧周报信件内容。',
+            illustrationIndex: 8,
+            isRead: false,
+            updatedAt: '2026-05-02T08:00:00.000Z',
+            sourceLegacyReportId: 'legacy-report-1',
+          },
+        ],
+      })
+      .expect(200);
+
+    expect(migrated.body.letters).toHaveLength(1);
+    expect(migrated.body.letters[0].userId).toBe(auth.body.user.id);
+
+    const read = await request(app.getHttpServer())
+      .patch(`/sarah/letters/${migrated.body.letters[0].id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ isRead: true })
+      .expect(200);
+
+    expect(read.body.letter.isRead).toBe(true);
+
+    const listed = await request(app.getHttpServer())
+      .get('/sarah/letters')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(listed.body.letters).toHaveLength(2);
+    expect(listed.body.letters.map((letter: any) => letter.type)).toContain('welcome');
+    expect(listed.body.letters.map((letter: any) => letter.type)).toContain('legacy');
+  });
+
+  it('no-ops Sarah weekly generation when the week has fewer than three records', async () => {
+    const auth = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        email: 'sarah-weekly@example.com',
+        password: 'StrongerPass123',
+        nickname: 'Ocean',
+      })
+      .expect(201);
+
+    const accessToken = auth.body.accessToken as string;
+
+    await request(app.getHttpServer())
+      .post('/records')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        id: 'week-record-1',
+        type: 'journal',
+        transcription: '第一条记录',
+        createdAt: '2026-05-18T08:00:00.000Z',
+        updatedAt: '2026-05-18T08:01:00.000Z',
+      })
+      .expect(201);
+
+    const generated = await request(app.getHttpServer())
+      .post('/sarah/letters/generate-weekly')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        weekStart: '2026-05-18T00:00:00.000Z',
+        weekEnd: '2026-05-24T00:00:00.000Z',
+      })
+      .expect(200);
+
+    expect(generated.body).toEqual({ letter: null });
+  });
+
   it('logs in with SMS verification and restores an Ocean session', async () => {
     await request(app.getHttpServer())
       .post('/auth/sms/send-code')

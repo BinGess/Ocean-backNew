@@ -9,8 +9,15 @@ function now(): Date {
 function matches<T extends Record<string, unknown>>(item: T, where?: WhereUnique<T>): boolean {
   if (!where) return true;
   return Object.entries(where).every(([key, value]) => {
-    if (value && typeof value === 'object' && 'gt' in value) {
-      return (item[key] as any) > (value as { gt: any }).gt;
+    if (value && typeof value === 'object') {
+      const filters = value as Record<string, any>;
+      const current = item[key] as any;
+      if ('gt' in filters && !(current > filters.gt)) return false;
+      if ('gte' in filters && !(current >= filters.gte)) return false;
+      if ('lt' in filters && !(current < filters.lt)) return false;
+      if ('lte' in filters && !(current <= filters.lte)) return false;
+      if ('equals' in filters && current !== filters.equals) return false;
+      return true;
     }
     return item[key] === value;
   });
@@ -99,6 +106,7 @@ export class InMemoryPrismaService {
   readonly dailyMoods: any[] = [];
   readonly insightReports: any[] = [];
   readonly weeklyInsights: any[] = [];
+  readonly sarahLetters: any[] = [];
   readonly syncChanges: any[] = [];
   readonly smsLoginAttempts: any[] = [];
 
@@ -121,6 +129,7 @@ export class InMemoryPrismaService {
   dailyMood = new InMemoryDelegate(this.dailyMoods);
   insightReport = new InMemoryDelegate(this.insightReports);
   weeklyInsight = new InMemoryDelegate(this.weeklyInsights);
+  sarahLetter = new InMemoryDelegate(this.sarahLetters);
   syncChange = new InMemoryDelegate(this.syncChanges);
   smsLoginAttempt = new InMemoryDelegate(this.smsLoginAttempts);
 
