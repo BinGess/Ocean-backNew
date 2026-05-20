@@ -10,14 +10,18 @@ import { InMemoryPrismaService } from '../testing/in-memory-prisma.service';
 describe('AuthService', () => {
   let prisma: InMemoryPrismaService;
   let service: AuthService;
+  let smsProvider: _FakeSmsProvider;
 
   beforeEach(() => {
+    delete process.env.APP_REVIEW_SMS_PHONE;
+    delete process.env.APP_REVIEW_SMS_CODE;
     prisma = new InMemoryPrismaService();
+    smsProvider = new _FakeSmsProvider();
     service = new AuthService(
       prisma as any,
       new PasswordService(),
       new TokenService('access-secret', 'refresh-secret'),
-      new _FakeSmsProvider(),
+      smsProvider,
       new PhoneNumberService(),
       new SmsRateLimitService(prisma as any),
     );
@@ -98,14 +102,38 @@ describe('AuthService', () => {
       service.loginWithSms({ phone: '13800138000', code: '000000' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
+
+  it('lets the configured App Review phone log in with a fixed code without contacting SMS provider', async () => {
+    process.env.APP_REVIEW_SMS_PHONE = '13900139000';
+    process.env.APP_REVIEW_SMS_CODE = '654321';
+
+    await service.sendSmsCode({ phone: '+8613900139000' });
+
+    expect(smsProvider.sentCodes).toBe(0);
+    expect(prisma.smsLoginAttempts[0].aliRequestId).toBe('app-review');
+
+    const result = await service.loginWithSms({
+      phone: '13900139000',
+      code: '654321',
+    });
+
+    expect(smsProvider.checkedCodes).toBe(0);
+    expect(result.accessToken).toEqual(expect.any(String));
+    expect(result.user.phone).toBe('139****9000');
+  });
 });
 
 class _FakeSmsProvider implements SmsProvider {
+  sentCodes = 0;
+  checkedCodes = 0;
+
   async sendCode(): Promise<{ requestId: string; bizId: string }> {
+    this.sentCodes += 1;
     return { requestId: 'aliyun-request', bizId: 'aliyun-biz' };
   }
 
   async checkCode(_phoneNumber: string, code: string): Promise<boolean> {
+    this.checkedCodes += 1;
     return code === '123456';
   }
 }

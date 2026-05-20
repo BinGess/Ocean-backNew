@@ -69,6 +69,23 @@ export class AuthService {
 
   async sendSmsCode(dto: SmsSendCodeDto, context: AuthContext = {}) {
     const phone = this.phoneNumberService.normalize(dto.phone);
+    if (this.isAppReviewPhone(phone.hash)) {
+      await this.prisma.smsLoginAttempt.create({
+        data: {
+          phoneHash: phone.hash,
+          scene: 'login',
+          ipAddress: context.ipAddress,
+          deviceId: context.deviceId,
+          aliRequestId: 'app-review',
+          aliBizId: null,
+        },
+      });
+      return {
+        success: true,
+        cooldownSeconds: Number(process.env.ALIYUN_SMS_INTERVAL_SECONDS ?? '60'),
+      };
+    }
+
     await this.smsRateLimitService.assertCanSend(phone.hash, context.ipAddress);
     const outId = this.tokenService.randomTokenId();
     const sent = await this.smsProvider.sendCode(phone.nationalNumber, outId);
@@ -90,7 +107,9 @@ export class AuthService {
 
   async loginWithSms(dto: SmsLoginDto, context: AuthContext = {}) {
     const phone = this.phoneNumberService.normalize(dto.phone);
-    const verified = await this.smsProvider.checkCode(phone.nationalNumber, dto.code);
+    const verified =
+      this.isAppReviewCode(phone.hash, dto.code) ||
+      (await this.smsProvider.checkCode(phone.nationalNumber, dto.code));
     if (!verified) {
       throw new UnauthorizedException('Invalid SMS verification code');
     }
@@ -203,5 +222,22 @@ export class AuthService {
 
   hashTokenForDebug(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private isAppReviewCode(phoneHash: string, code: string): boolean {
+    const reviewCode = process.env.APP_REVIEW_SMS_CODE?.trim();
+    if (!reviewCode || !/^\d{4,8}$/.test(reviewCode)) return false;
+    return this.isAppReviewPhone(phoneHash) && code === reviewCode;
+  }
+
+  private isAppReviewPhone(phoneHash: string): boolean {
+    const reviewPhone = process.env.APP_REVIEW_SMS_PHONE?.trim();
+    if (!reviewPhone) return false;
+
+    try {
+      return this.phoneNumberService.normalize(reviewPhone).hash === phoneHash;
+    } catch {
+      return false;
+    }
   }
 }

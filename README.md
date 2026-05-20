@@ -4,7 +4,7 @@ NestJS + Prisma + PostgreSQL backend for the Ocean Flutter app.
 
 ## Scope
 
-- Email/password auth with Argon2id password hashes.
+- Email/password auth with Argon2id password hashes, plus SMS verification login.
 - JWT access tokens and rotating refresh sessions.
 - Profile APIs.
 - Text and structured-data sync for records, daily summaries, daily moods, weekly/monthly report cache, and legacy weekly insights.
@@ -41,6 +41,17 @@ npm run start:sealos
 ```
 
 In Sealos, leave the startup command empty so the image default command runs this script.
+
+### App Review SMS Login
+
+If Apple needs a fixed demo account for review, configure:
+
+```bash
+APP_REVIEW_SMS_PHONE=<demo phone number>
+APP_REVIEW_SMS_CODE=<4-8 digit demo code>
+```
+
+For this phone number only, `/auth/sms/send-code` returns success without contacting the SMS provider, and `/auth/sms/login` accepts the configured fixed code. Ordinary users still use the real SMS provider.
 
 ## Render Deployment
 
