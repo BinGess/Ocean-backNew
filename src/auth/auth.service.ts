@@ -177,6 +177,10 @@ export class AuthService {
     return this.issueTokens(payload.sub, context);
   }
 
+  async deleteAccount(userId: string): Promise<void> {
+    await this.prisma.user.delete({ where: { id: userId } });
+  }
+
   async logout(refreshToken: string): Promise<void> {
     const payload = this.tokenService.verifyRefresh(refreshToken);
     await this.prisma.refreshSession.update({

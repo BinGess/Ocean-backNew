@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard, JwtUser } from '../common/guards/jwt-auth.guard';
@@ -71,6 +71,12 @@ export class SarahController {
       type: result.letter?.type ?? null,
     });
     return result;
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async delete(@CurrentUser() user: JwtUser, @Param('id') id: string) {
+    await this.sarahService.delete(user.id, id);
   }
 
   @Patch(':id')

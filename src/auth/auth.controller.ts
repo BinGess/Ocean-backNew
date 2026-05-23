@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
@@ -41,6 +41,14 @@ export class AuthController {
   @Post('logout')
   logout(@Body() dto: RefreshDto, @CurrentUser() _user: JwtUser) {
     return this.authService.logout(dto.refreshToken);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Delete('account')
+  @HttpCode(204)
+  deleteAccount(@CurrentUser() user: JwtUser) {
+    return this.authService.deleteAccount(user.id);
   }
 
   private getRequestMeta(req: Request) {

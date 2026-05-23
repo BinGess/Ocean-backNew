@@ -175,6 +175,23 @@ export class SarahService {
     }
   }
 
+  async delete(userId: string, id: string) {
+    const letter = await this.prisma.sarahLetter.findFirst({
+      where: { id, userId },
+    });
+
+    if (!letter) {
+      throw new NotFoundException('Letter not found');
+    }
+
+    if (!letter.deletedAt) {
+      await this.prisma.sarahLetter.update({
+        where: { id: letter.id },
+        data: { deletedAt: new Date() },
+      });
+    }
+  }
+
   async patch(userId: string, id: string, dto: PatchSarahLetterDto) {
     const existing = await this.prisma.sarahLetter.findFirst({
       where: { id, userId, deletedAt: null },
