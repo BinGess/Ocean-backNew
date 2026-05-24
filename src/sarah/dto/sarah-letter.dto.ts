@@ -81,6 +81,18 @@ export class GenerateWeeklySarahLetterDto {
   weekEnd!: string;
 }
 
+/** 内部接口专用：管理员 / 服务内部补发指定用户的周报 */
+export class GenerateWeeklyInternalDto {
+  @IsString()
+  userId!: string;
+
+  @IsISO8601()
+  weekStart!: string;
+
+  @IsISO8601()
+  weekEnd!: string;
+}
+
 export class PatchSarahLetterDto {
   @IsBoolean()
   isRead!: boolean;

@@ -1,10 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { InternalGuard } from '../common/guards/internal.guard';
 import { JwtAuthGuard, JwtUser } from '../common/guards/jwt-auth.guard';
 import { sarahDebugLog } from '../common/utils/sarah-debug-log';
 import {
-  GenerateWeeklySarahLetterDto,
+  GenerateWeeklyInternalDto,
   MigrateLegacyLettersDto,
   PatchSarahLetterDto,
 } from './dto/sarah-letter.dto';
@@ -59,18 +60,16 @@ export class SarahController {
     return result;
   }
 
+  /**
+   * 内部接口：为指定用户补发指定周的周报，仅供管理员/运维调用。
+   * 鉴权：Header `X-Internal-Token: <SARAH_INTERNAL_TOKEN>`
+   * 客户端不应调用此接口。
+   */
   @Post('generate-weekly')
   @HttpCode(200)
-  async generateWeekly(@CurrentUser() user: JwtUser, @Body() dto: GenerateWeeklySarahLetterDto) {
-    const result = await this.sarahService.generateWeekly(user.id, dto);
-    sarahDebugLog('POST /sarah/letters/generate-weekly result', {
-      userId: user.id,
-      weekStart: dto.weekStart,
-      weekEnd: dto.weekEnd,
-      letterId: result.letter?.id ?? null,
-      type: result.letter?.type ?? null,
-    });
-    return result;
+  @UseGuards(InternalGuard)
+  async generateWeeklyInternal(@Body() dto: GenerateWeeklyInternalDto) {
+    return this.sarahService.generateWeeklyInternal(dto);
   }
 
   @Delete(':id')
