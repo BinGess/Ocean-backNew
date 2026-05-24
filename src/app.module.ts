@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AnalysisModule } from './analysis/analysis.module';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env.validation';
 import { HealthController } from './health.controller';
@@ -25,6 +26,7 @@ import { SyncModule } from './sync/sync.module';
     ReportsModule,
     SarahModule,
     SyncModule,
+    AnalysisModule,
   ],
   controllers: [HealthController],
 })
