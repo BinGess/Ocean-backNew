@@ -82,6 +82,7 @@ export class SarahCozeClient {
       (typeof source === 'string' ? source.trim() : '');
 
     const signature =
+      this.readString(normalized, ['emotion_overview', 'signature']) ??  // coze.site 嵌套格式
       this.readString(normalized, ['signature']) ??
       this.readString(normalized, ['sign_off']) ??
       this.readString(normalized, ['signOff']) ??
@@ -165,6 +166,7 @@ export class SarahCozeClient {
         if (errorCode) throw new SarahCozeServiceError(`Coze stream ended with error: ${errorCode}`);
       }
       const content =
+        this.readString(event, ['content', 'answer']) ??   // coze.site stream_run 格式
         this.readString(event, ['answer']) ??
         this.readString(event, ['content']) ??
         this.readString(event, ['message', 'content']) ??
