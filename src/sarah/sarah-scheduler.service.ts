@@ -72,6 +72,133 @@ export class SarahSchedulerService {
   }
 
   /**
+   * 历史补全：扫描 record 表，对所有用户的每一个自然周（北京时间）补发 Sarah 信件。
+   * 已生成过的周自动跳过（幂等），当前未结束的周不处理。
+   * 通过 POST /sarah/admin/backfill-historical 触发，在后台异步执行。
+   */
+  async backfillHistoricalLetters(): Promise<void> {
+    this.logger.log('[Sarah Backfill] Starting...');
+
+    // 找最早一条记录，确定补全起点
+    const earliest = await this.prisma.record.findFirst({
+      where: { deletedAt: null },
+      orderBy: { createdAtClient: 'asc' },
+      select: { createdAtClient: true },
+    });
+    if (!earliest?.createdAtClient) {
+      this.logger.log('[Sarah Backfill] No records found, nothing to backfill');
+      return;
+    }
+
+    // 只补已结束的完整自然周（不含当前周）
+    const weeks = this.getCompletedWeeksBetween(earliest.createdAtClient, new Date());
+    this.logger.log(`[Sarah Backfill] ${weeks.length} completed weeks to process`);
+
+    // 取所有有记录的用户（不限 active 状态，历史数据也需要补）
+    const userRows = await this.prisma.record.findMany({
+      where: { deletedAt: null },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    this.logger.log(`[Sarah Backfill] ${userRows.length} users with records`);
+
+    let generated = 0, skippedExisting = 0, skippedNoRecords = 0, failed = 0;
+
+    for (const { userId } of userRows) {
+      for (const { weekStart, weekEnd } of weeks) {
+        try {
+          const result = await this.sarahService.generateWeeklyForUser(userId, weekStart, weekEnd);
+          switch (result) {
+            case 'generated':          generated++;        break;
+            case 'skipped_existing':   skippedExisting++;  break;
+            case 'skipped_no_records': skippedNoRecords++; break;
+          }
+        } catch (error) {
+          failed++;
+          this.logger.error(
+            `[Sarah Backfill] Failed user=${userId} week=${weekStart.toISOString()}: ${this.errorMessage(error)}`,
+          );
+        }
+      }
+    }
+
+    this.logger.log(
+      `[Sarah Backfill] Done — generated: ${generated}, ` +
+      `skipped(existing): ${skippedExisting}, skipped(no records): ${skippedNoRecords}, failed: ${failed}`,
+    );
+
+    // 补全完成后，自动去重：同一用户同一周已有 weekly 信件时，软删对应的 legacy 信件
+    await this.deduplicateHistoricalLetters();
+  }
+
+  /**
+   * 去重：对所有用户，若某周同时存在 legacy 和 weekly 两封信，
+   * 以 AI 生成的 weekly 为准，将 legacy 软删除。
+   * 可单独触发（POST /sarah/admin/dedup-historical），也在 backfill 后自动执行。
+   */
+  async deduplicateHistoricalLetters(): Promise<{ deduped: number }> {
+    this.logger.log('[Sarah Dedup] Starting...');
+
+    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+    // 取所有有效的 weekly 信件（weekStart 不为空）
+    const weeklyLetters = await this.prisma.sarahLetter.findMany({
+      where: { type: 'weekly', deletedAt: null, weekStart: { not: null } },
+      select: { userId: true, weekStart: true },
+    });
+
+    this.logger.log(`[Sarah Dedup] ${weeklyLetters.length} weekly letters to check`);
+
+    let deduped = 0;
+
+    for (const weekly of weeklyLetters) {
+      // 同一用户、同一自然周内的 legacy 信件全部软删
+      const result = await this.prisma.sarahLetter.updateMany({
+        where: {
+          userId: weekly.userId,
+          type: 'legacy',
+          deletedAt: null,
+          weekStart: {
+            gte: weekly.weekStart!,
+            lt: new Date(weekly.weekStart!.getTime() + ONE_WEEK_MS),
+          },
+        },
+        data: { deletedAt: new Date() },
+      });
+      deduped += result.count;
+    }
+
+    this.logger.log(`[Sarah Dedup] Done — soft-deleted ${deduped} duplicate legacy letters`);
+    return { deduped };
+  }
+
+  /**
+   * 返回从 start 到 end 之间所有已完成的自然周（北京时间周一 00:00 ～ 周日 23:59:59）。
+   * 当前未结束的周不包含在内。
+   */
+  private getCompletedWeeksBetween(
+    start: Date,
+    end: Date,
+  ): Array<{ weekStart: Date; weekEnd: Date }> {
+    const weeks: Array<{ weekStart: Date; weekEnd: Date }> = [];
+
+    // start 所在周的周一 00:00 CST（UTC 表示）
+    let weekStart = this.getMondayMidnightCST(start);
+
+    // end 所在周的周一 00:00 CST（UTC 表示）——当前周，不包含
+    const currentWeekStart = this.getMondayMidnightCST(end);
+
+    while (weekStart < currentWeekStart) {
+      // 周日 23:59:59.999 CST = weekStart + 7天 - 1ms
+      const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+      weeks.push({ weekStart, weekEnd });
+      weekStart = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+    }
+
+    return weeks;
+  }
+
+  /**
    * 计算给定时刻所在 ISO 周的周一 00:00 CST（转为 UTC 存储）。
    *
    * 实现思路：

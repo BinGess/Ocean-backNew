@@ -40,4 +40,27 @@ export class SarahAdminController {
   async generateWeeklyForUser(@Body() dto: GenerateWeeklyInternalDto) {
     return this.sarahService.generateWeeklyInternal(dto);
   }
+
+  /**
+   * 历史补全：扫描所有用户的 record 记录，按自然周（北京时间）批量生成历史 Sarah 信件。
+   * 补全完成后自动执行去重（同一周存在 legacy + weekly 时保留 weekly，软删 legacy）。
+   * 接口立即返回，补全任务在后台异步执行，进度通过服务日志查看。
+   * 操作完全幂等：已生成的周自动跳过，当前未结束的周不处理。
+   */
+  @Post('backfill-historical')
+  @HttpCode(200)
+  async backfillHistorical() {
+    this.sarahSchedulerService.backfillHistoricalLetters().catch(() => {});
+    return { ok: true, message: '历史补全任务已在后台启动，请通过服务日志查看进度' };
+  }
+
+  /**
+   * 单独执行去重：同步返回去重结果。
+   * 适用场景：单独补发某用户后手动触发去重，无需重跑整个 backfill。
+   */
+  @Post('dedup-historical')
+  @HttpCode(200)
+  async dedupHistorical() {
+    return this.sarahSchedulerService.deduplicateHistoricalLetters();
+  }
 }
