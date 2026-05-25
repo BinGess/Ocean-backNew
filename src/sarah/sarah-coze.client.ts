@@ -26,8 +26,6 @@ export class SarahCozeClient {
     const token = this.config.get<string>('SARAH_COZE_TOKEN') ?? this.config.get<string>('COZE_TOKEN');
     const projectIdStr =
       this.config.get<string>('SARAH_COZE_PROJECT_ID') ?? this.config.get<string>('COZE_PROJECT_ID');
-    const endpointPath = this.config.get<string>('SARAH_COZE_ENDPOINT_PATH') ?? '/stream_run';
-
     if (!baseUrl || !token || !projectIdStr) {
       throw new SarahCozeConfigurationError('Coze baseUrl, token, and project id are required');
     }
@@ -37,7 +35,9 @@ export class SarahCozeClient {
       throw new SarahCozeConfigurationError('SARAH_COZE_PROJECT_ID must be a valid number');
     }
 
-    const url = new URL(endpointPath, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
+    // SARAH_COZE_BASE_URL 直接填写完整的请求地址（含路径），例如：
+    // https://5n7q5rgdnh.coze.site/stream_run
+    const url = new URL(baseUrl);
     const body = {
       content: {
         query: {
