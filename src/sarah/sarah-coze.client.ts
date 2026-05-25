@@ -34,7 +34,7 @@ export class SarahCozeClient {
 
     const url = new URL(endpointPath, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
     const body = {
-      project_id: projectId,
+      workflow_id: projectId,
       parameters: {
         records: input.records,
       },
