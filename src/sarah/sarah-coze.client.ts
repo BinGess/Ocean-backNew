@@ -24,24 +24,47 @@ export class SarahCozeClient {
   }): Promise<SarahCozeLetterParts> {
     const baseUrl = this.config.get<string>('SARAH_COZE_BASE_URL') ?? this.config.get<string>('COZE_BASE_URL');
     const token = this.config.get<string>('SARAH_COZE_TOKEN') ?? this.config.get<string>('COZE_TOKEN');
-    const projectId =
+    const projectIdStr =
       this.config.get<string>('SARAH_COZE_PROJECT_ID') ?? this.config.get<string>('COZE_PROJECT_ID');
-    const endpointPath = this.config.get<string>('SARAH_COZE_ENDPOINT_PATH') ?? '/v1/workflow/run';
+    const endpointPath = this.config.get<string>('SARAH_COZE_ENDPOINT_PATH') ?? '/stream_run';
 
-    if (!baseUrl || !token || !projectId) {
+    if (!baseUrl || !token || !projectIdStr) {
       throw new SarahCozeConfigurationError('Coze baseUrl, token, and project id are required');
+    }
+
+    const projectId = Number(projectIdStr);
+    if (Number.isNaN(projectId)) {
+      throw new SarahCozeConfigurationError('SARAH_COZE_PROJECT_ID must be a valid number');
     }
 
     const url = new URL(endpointPath, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
     const body = {
-      workflow_id: projectId,
-      parameters: {
-        records: input.records,
+      content: {
+        query: {
+          prompt: [
+            {
+              type: 'text',
+              content: { text: this.buildPrompt(input) },
+            },
+          ],
+        },
       },
+      type: 'query',
+      session_id: this.newSessionId(),
+      project_id: projectId,
     };
 
     const responseText = await this.postWithRetry(url, token, body);
     return this.parseLetterParts(responseText);
+  }
+
+  private buildPrompt(input: { weekStart: string; weekEnd: string; records: SarahCozeRecord[] }): string {
+    const recordsText = input.records.map((r) => `[${r.record_time}] ${r.content}`).join('\n');
+    return `以下是用户本周（${input.weekStart} 至 ${input.weekEnd}）的记录，请据此生成 Sarah 信件：\n\n${recordsText}`;
+  }
+
+  private newSessionId(): string {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2);
   }
 
   parseLetterParts(raw: unknown): SarahCozeLetterParts {
