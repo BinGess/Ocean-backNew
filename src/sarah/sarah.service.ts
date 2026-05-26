@@ -65,8 +65,24 @@ export class SarahService {
     const migrated = new Map<string, SarahLetter>();
 
     for (const letter of letters) {
-      const sourceLegacyReportId = this.nullableString(letter.sourceLegacyReportId);
+      // 跳过内容含有未替换模板占位符的脏数据（如 {trigger}、{need}）
+      if (this.hasUnresolvedTemplates(letter.content)) {
+        this.logger.warn(
+          `[migrateLegacy] Skipped letter with unresolved templates — userId=${userId} id=${letter.id}`,
+        );
+        continue;
+      }
+
+      // 跳过 weekStart 在未来的信件（旧客户端在周初生成报告导致的异常数据）
       const weekStart = this.optionalDate(letter.weekStart);
+      if (weekStart && weekStart > new Date()) {
+        this.logger.warn(
+          `[migrateLegacy] Skipped letter with future weekStart — userId=${userId} weekStart=${weekStart.toISOString()}`,
+        );
+        continue;
+      }
+
+      const sourceLegacyReportId = this.nullableString(letter.sourceLegacyReportId);
       const weekEnd = this.optionalDate(letter.weekEnd);
       const dedupeKey = this.legacyDedupeKey(letter, weekStart, weekEnd, sourceLegacyReportId);
       const existing = await this.findByDedupe(userId, dedupeKey);
@@ -292,6 +308,14 @@ export class SarahService {
    */
   private weeklyDedupeKey(weekStart: Date): string {
     return `weekly:${weekStart.toISOString()}`;
+  }
+
+  /**
+   * 检测内容中是否含有未替换的模板占位符，如 {trigger}、{need}。
+   * 旧客户端生成的周报使用了模板但未能正确替换变量，此类内容不应写入数据库。
+   */
+  private hasUnresolvedTemplates(content: string): boolean {
+    return /\{[a-zA-Z_]+\}/.test(content);
   }
 
   private optionalDate(value?: string | null): Date | null {
