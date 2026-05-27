@@ -45,7 +45,18 @@ export class SarahService {
 
   async welcome(userId: string) {
     const existing = await this.findByDedupe(userId, 'welcome');
-    if (existing) return { letter: this.toPayload(existing) };
+
+    if (existing) {
+      // 若 welcome 信件曾被软删，恢复可见（welcome 是固定内容，始终应对用户可见）
+      if (existing.deletedAt) {
+        const restored = await this.prisma.sarahLetter.update({
+          where: { id: existing.id },
+          data: { deletedAt: null },
+        });
+        return { letter: this.toPayload(restored) };
+      }
+      return { letter: this.toPayload(existing) };
+    }
 
     const letter = await this.createOrReturnExisting(userId, 'welcome', {
       userId,
