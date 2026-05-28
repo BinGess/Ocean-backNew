@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { DevicesService } from '../devices/devices.service';
+import { ApnsService } from '../push/apns.service';
 import { SarahService } from './sarah.service';
 
 const CST_OFFSET_MS = 8 * 60 * 60 * 1000; // UTC+8
@@ -12,6 +14,8 @@ export class SarahSchedulerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sarahService: SarahService,
+    private readonly devicesService: DevicesService,
+    private readonly apnsService: ApnsService,
   ) {}
 
   /**
@@ -51,7 +55,13 @@ export class SarahSchedulerService {
       try {
         const result = await this.sarahService.generateWeeklyForUser(user.id, weekStart, weekEnd);
         switch (result) {
-          case 'generated':        generated++;        break;
+          case 'generated':
+            generated++;
+            // 异步推送，不影响主流程
+            this.sendPushNotification(user.id).catch((err) =>
+              this.logger.error(`[Sarah Cron] Push failed for user ${user.id}: ${this.errorMessage(err)}`),
+            );
+            break;
           case 'skipped_existing': skippedExisting++;  break;
           case 'skipped_no_records': skippedNoRecords++; break;
         }
@@ -170,6 +180,39 @@ export class SarahSchedulerService {
 
     this.logger.log(`[Sarah Dedup] Done — soft-deleted ${deduped} duplicate legacy letters`);
     return { deduped };
+  }
+
+  /**
+   * 向用户所有 iOS 设备发送 Sarah 新信件推送通知。
+   * 若 APNs 返回 410（token 已失效），自动从数据库删除该 token。
+   */
+  private async sendPushNotification(userId: string): Promise<void> {
+    const tokens = await this.devicesService.getTokensByUser(userId, 'ios');
+    if (tokens.length === 0) return;
+
+    const payload = {
+      aps: {
+        alert: {
+          title: 'Sarah 的新信件',
+          body: '你本周的 Sarah 信件已经生成，快来看看吧 ✉️',
+        },
+        sound: 'default',
+        badge: 1,
+      },
+      type: 'sarah_letter',
+    };
+
+    await Promise.all(
+      tokens.map(async (token) => {
+        const result = await this.apnsService.send(token, payload);
+        if (result.tokenExpired) {
+          this.logger.warn(`[Sarah Push] Token expired, removing: ${token.slice(0, 8)}...`);
+          await this.devicesService.removeToken(token);
+        }
+      }),
+    );
+
+    this.logger.log(`[Sarah Push] Sent to ${tokens.length} device(s) for user ${userId}`);
   }
 
   /**
