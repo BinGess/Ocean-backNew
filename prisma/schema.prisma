@@ -135,6 +135,7 @@ model Record {
   weekRange           String?
   referencedRecords   Json?
   patternFeedback     String?
+  deepAnalyses         Json?
   deletedAt           DateTime?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt

@@ -50,6 +50,7 @@ export class RecordsService {
     const existing = await this.prisma.record.findFirst({
       where: { userId, clientRecordId: id },
     });
+    const hasDeepAnalyses = Object.prototype.hasOwnProperty.call(dto, 'deepAnalyses');
     const data = {
       userId,
       clientRecordId: id,
@@ -70,6 +71,7 @@ export class RecordsService {
       weekRange: dto.weekRange ?? null,
       referencedRecords: dto.referencedRecords ?? null,
       patternFeedback: dto.patternFeedback ?? null,
+      deepAnalyses: hasDeepAnalyses ? (dto.deepAnalyses ?? null) : (existing?.deepAnalyses ?? null),
       deletedAt: null,
     };
 
@@ -129,6 +131,7 @@ export class RecordsService {
       weekRange: record.weekRange ?? null,
       referencedRecords: record.referencedRecords ?? null,
       patternFeedback: record.patternFeedback ?? null,
+      deepAnalyses: Array.isArray(record.deepAnalyses) ? record.deepAnalyses : [],
       deletedAt: this.iso(record.deletedAt),
     };
   }

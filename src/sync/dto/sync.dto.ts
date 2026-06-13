@@ -102,6 +102,10 @@ export class SyncRecordDto {
   patternFeedback?: string | null;
 
   @IsOptional()
+  @IsArray()
+  deepAnalyses?: Array<Record<string, unknown>> | null;
+
+  @IsOptional()
   @IsISO8601()
   deletedAt?: string | null;
 }

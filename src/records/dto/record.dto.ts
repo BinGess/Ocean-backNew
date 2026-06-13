@@ -74,4 +74,8 @@ export class UpsertRecordDto {
   @IsOptional()
   @IsString()
   patternFeedback?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  deepAnalyses?: Array<Record<string, unknown>> | null;
 }

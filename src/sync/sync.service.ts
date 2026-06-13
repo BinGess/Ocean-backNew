@@ -144,6 +144,7 @@ export class SyncService {
     });
     if (existing && existing.clientUpdatedAt > clientUpdatedAt) return null;
 
+    const hasDeepAnalyses = Object.prototype.hasOwnProperty.call(dto, 'deepAnalyses');
     const data = {
       userId,
       clientRecordId: dto.id,
@@ -164,6 +165,7 @@ export class SyncService {
       weekRange: dto.weekRange ?? null,
       referencedRecords: dto.referencedRecords ?? null,
       patternFeedback: dto.patternFeedback ?? null,
+      deepAnalyses: hasDeepAnalyses ? (dto.deepAnalyses ?? null) : (existing?.deepAnalyses ?? null),
       deletedAt: this.parseDate(dto.deletedAt),
     };
 
@@ -340,6 +342,7 @@ export class SyncService {
       weekRange: record.weekRange ?? null,
       referencedRecords: record.referencedRecords ?? null,
       patternFeedback: record.patternFeedback ?? null,
+      deepAnalyses: Array.isArray(record.deepAnalyses) ? record.deepAnalyses : [],
       deletedAt: this.iso(record.deletedAt),
     };
   }
